@@ -67,14 +67,34 @@ class ExceptionRenderer
      * @param ParserException $e
      * @param string $header
      * @param ErrorVisualizeSize $size
+     * @param bool $expectsCliOutput
      * @return string
      */
-    public static function toString(ParserException $e, string $header, int $size = self::DEFAULT_SIZE): string
-    {
+    public static function toString(
+        ParserException $e,
+        string $header,
+        int $size = self::DEFAULT_SIZE,
+        bool $expectsCliOutput = false,
+    ): string {
+        $enableConsoleColors = $expectsCliOutput
+            && \class_exists(Console::class)
+            && (new Console())->hasColorSupport()
+        ;
+
         $result = [];
+        $error = null;
 
         foreach (static::toIterator($e, $header, $size) as $line => $text) {
-            $result[] = \sprintf('%5d. | %s', $line, $text);
+            if ($enableConsoleColors) {
+                if ($line === ($error ??= static::getErrorLine($e))) {
+                    $result[] = \sprintf("\u{001b}[31m%5d |\u{001b}[41m\u{001b}[37;1m %s \u{001b}[0m", $line, $text);
+                } else {
+                    $result[] = \sprintf("\u{001b}[90m%5d |\u{001b}[0m %s", $line, $text);
+                }
+                continue;
+            }
+
+            $result[] = \sprintf('%5d | %s', $line, $text);
         }
 
         return \implode("\n", $result);
@@ -88,19 +108,6 @@ class ExceptionRenderer
      */
     public static function dump(ParserException $e, string $header, int $size = self::DEFAULT_SIZE): void
     {
-        $hasColors = \class_exists(Console::class) && (new Console())->hasColorSupport();
-        $result = [];
-        $error = null;
-
-        foreach (static::toIterator($e, $header, $size) as $line => $text) {
-            if ($hasColors && $line === ($error ??= static::getErrorLine($e))) {
-                $result[] = \sprintf("%5d. | \u{001b}[41m\u{001b}[37;1m%s\u{001b}[0m", $line, $text);
-                continue;
-            }
-
-            $result[] = \sprintf('%5d. | %s', $line, $text);
-        }
-
-        \file_put_contents('php://stdout', \implode("\n", $result));
+        \file_put_contents('php://stdout', static::toString($e, $header, $size, true));
     }
 }
