@@ -49,6 +49,10 @@ class PharResult extends Result
         /** @var \PharFileInfo $info */
         $info = $this->phar[$file];
 
+        if (!\is_dir($directory = \dirname($target))) {
+            \mkdir($directory, recursive: true);
+        }
+
         \file_put_contents($target, $info->getContent());
 
         return $this;
